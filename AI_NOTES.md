@@ -14,3 +14,5 @@ przyznaje także że wspomagałem się przy budowaniu customowych query w repozy
 
 również zapytałem jak zapewnić odpowiednią izolacje w transakcjach co wydawało mi się ważę w temacie api do zarządania budżetem
  ```@Lock(LockModeType.PESSIMISTIC_WRITE)``` 
+
+**Całe GUI (http://localhost:80) czyli endpoint tester  podobny do bruno/postmana został zrobiony przez copilota**
