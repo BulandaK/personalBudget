@@ -9,7 +9,7 @@ Przepraszam też z góry za brak conventional commits.
 
 Z wstępu chciałem dodać jeszcze, że dodany został plik AI_NOTES.md w którym zamieściłem 
 zagadnienia przy których wspierałem się narzędziami AI. To co nie znalazło się w AI_NOTES zrobiłem ręcznie 
-lub powieliłem z moich poprzednich projektów.  
+lub powieliłem z moich poprzednich projektów.
 
 z wymagań technicznych podsyłam tu screena z spring initalizera
 ![springIntializr.png](springIntializr.png)
@@ -28,7 +28,7 @@ JAK ODPALIC APLIKACJE
     - windows: ```.\mvnw clean install```
 4. po zbudowaniu artefaktu, uruchamiamy ```docker compose up --build```
 5. następnie wchodzimy do naszej przeglądarki i wpisujemy ```http://localhost:80```
-6. powinien nam sie ukazac vibekodzony prosty tester do endpointow, 
+6. powinien nam sie ukazac vibekodzony w react'cie panel do zarządzania budżetem, 
 w bazie danych dodałem kilka testowych rekordów ale najlepiej przetestować samemu działanie
 7. nasze api powinno działać pod adresem ```http://localhost:8080/api/v1/``` 
 

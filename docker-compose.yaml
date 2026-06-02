@@ -40,12 +40,12 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
   frontend:
-    image: nginx:alpine
-    container_name: personal_budget_gui
+    build: ./frontend
+    container_name: personal_budget_react_app
     ports:
       - "80:80"
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
+    networks:
+      - my-network
     depends_on:
       - app
 networks:
