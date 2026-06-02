@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>API Tester — Personal Budget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+  </head>
+  <body class="bg-gray-100 text-gray-900">
+    <div class="max-w-6xl mx-auto p-6">
+      <header class="mb-6">
+        <h1 class="text-2xl font-semibold">Personal Budget — Endpoint tester</h1>
+        <p class="text-sm text-gray-600">Wczytuje <span class="font-mono">api-docs.json</span>, buduje formularze i wyświetla odpowiedzi JSON.</p>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <aside class="md:col-span-1 bg-white rounded-lg shadow p-4">
+          <h2 class="font-medium mb-2">Endpoints</h2>
+          <div id="endpointsList" class="space-y-2 text-sm text-gray-700 overflow-auto max-h-[60vh]"></div>
+        </aside>
+
+        <main class="md:col-span-2 bg-white rounded-lg shadow p-4">
+          <div id="details" class="space-y-4">
+            <div id="emptyHint" class="text-sm text-gray-500">Wybierz endpoint po lewej, aby zobaczyć formularz i wysłać żądanie.</div>
+          </div>
+          <div class="mt-4">
+            <h3 class="font-medium">Response</h3>
+            <div id="responseMeta" class="text-xs text-gray-500 mt-1"></div>
+            <pre id="responseBody" class="mt-2 p-3 bg-gray-50 text-gray-900 rounded max-h-[50vh] overflow-auto text-sm"></pre>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      async function loadApiDocs() {
+        const res = await fetch('api-docs.json');
+        if (!res.ok) throw new Error('Nie można wczytać api-docs.json');
+        return res.json();
+      }
+
+      function createSampleFromSchema(schema, components, depth=0) {
+        if (!schema || depth>3) return null;
+        if (schema.$ref) {
+          const ref = schema.$ref.replace('#/components/schemas/','');
+          return createSampleFromSchema(components[ref], components, depth+1);
+        }
+        if (schema.type === 'object') {
+          const obj = {};
+          const props = schema.properties || {};
+          for (const k of Object.keys(props)) {
+            const p = props[k];
+            if (p.example !== undefined) obj[k] = p.example;
+            else if (p.type === 'string') obj[k] = p.format === 'date-time' ? new Date().toISOString() : '';
+            else if (p.type === 'number' || p.type === 'integer') obj[k] = 0;
+            else if (p.type === 'boolean') obj[k] = false;
+            else obj[k] = createSampleFromSchema(p, components, depth+1);
+          }
+          return obj;
+        }
+        if (schema.type === 'array') return [ createSampleFromSchema(schema.items, components, depth+1) ];
+        if (schema.type === 'string') return schema.example || '';
+        if (schema.type === 'number' || schema.type === 'integer') return schema.example || 0;
+        if (schema.type === 'boolean') return schema.example || false;
+        return null;
+      }
+
+      function buildEndpointsList(api) {
+        const container = document.getElementById('endpointsList');
+        const paths = api.paths || {};
+        const grouped = {};
+        for (const path of Object.keys(paths)) {
+          for (const method of Object.keys(paths[path])) {
+            const op = paths[path][method];
+            const tag = (op.tags && op.tags[0]) || 'Other';
+            grouped[tag] = grouped[tag] || [];
+            // remap budgets account path to new route
+            let usePath = path;
+            if (path === '/api/v1/budgets/{accountId}') usePath = '/api/v1/budgets/account/{accountId}';
+            grouped[tag].push({path: usePath, method: method.toUpperCase(), op});
+          }
+        }
+
+        for (const tag of Object.keys(grouped)) {
+          const h = document.createElement('div');
+          h.innerHTML = `<div class="text-xs font-semibold text-gray-600 mt-3 mb-1">${tag}</div>`;
+          container.appendChild(h);
+          for (const e of grouped[tag]) {
+            const btn = document.createElement('button');
+            btn.className = 'w-full text-left px-3 py-2 rounded hover:bg-gray-50 flex items-center justify-between';
+            btn.innerHTML = `<span class="font-mono text-sm">${e.method}</span> <span class="ml-2 truncate">${e.path}</span>`;
+            btn.onclick = () => showEndpoint(e, api);
+            container.appendChild(btn);
+          }
+        }
+      }
+
+      function showEndpoint(entry, api) {
+        const details = document.getElementById('details');
+        details.innerHTML = '';
+        const title = document.createElement('div');
+        title.className = 'flex items-baseline justify-between';
+        title.innerHTML = `<div><span class="px-2 py-1 bg-gray-100 text-xs rounded border mr-2">${entry.method}</span><strong class="text-lg">${entry.op.summary||entry.op.operationId||entry.path}</strong><div class="text-sm text-gray-500">${entry.path}</div></div>`;
+        details.appendChild(title);
+
+        // Form
+        const form = document.createElement('form');
+        form.className = 'mt-4 space-y-3';
+
+        // Path params
+        const pathParamNames = [];
+        const pathRegex = /\{(.*?)\}/g;
+        let m;
+        while ((m = pathRegex.exec(entry.path)) !== null) pathParamNames.push(m[1]);
+        const samplePathValues = {};
+        if (pathParamNames.length) {
+          const wrap = document.createElement('div');
+          wrap.innerHTML = '<div class="text-sm text-gray-600">Path parameters</div>';
+          pathParamNames.forEach(name => {
+            const paramDef = (entry.op.parameters||[]).find(p=>p.name===name && p.in==='path') || {};
+            let sample = '';
+            if (paramDef.example !== undefined) sample = paramDef.example;
+            else if (paramDef.schema && paramDef.schema.example !== undefined) sample = paramDef.schema.example;
+            else if (paramDef.schema && paramDef.schema.type === 'integer') sample = 1;
+            else if (paramDef.schema && paramDef.schema.type === 'string') sample = '';
+            samplePathValues[name] = sample;
+            const row = document.createElement('div');
+            row.className = 'flex gap-2';
+            row.innerHTML = `<input name="path_${name}" placeholder="${name}" value="${sample}" class="flex-1 p-2 border rounded" />`;
+            wrap.appendChild(row);
+          });
+          form.appendChild(wrap);
+        }
+
+        // Query params
+        const queryParams = (entry.op.parameters||[]).filter(p=>p.in==='query');
+        const sampleQueryValues = {};
+        if (queryParams.length) {
+          const wrap = document.createElement('div');
+          wrap.innerHTML = '<div class="text-sm text-gray-600">Query parameters</div>';
+          queryParams.forEach(p=>{
+            // resolve schema if $ref
+            let schema = p.schema || {};
+            if (schema.$ref && api.components && api.components.schemas) {
+              const ref = schema.$ref.replace('#/components/schemas/','');
+              schema = api.components.schemas[ref] || schema;
+            }
+
+            if (schema.type === 'object' && schema.properties) {
+              // structured query param (e.g. criteria)
+              const structWrap = document.createElement('div');
+              structWrap.className = 'space-y-2';
+              structWrap.innerHTML = `<div class="text-xs font-medium text-gray-700">${p.name} (object)</div>`;
+              const struct = document.createElement('div');
+              struct.setAttribute('data-query-structured', p.name);
+              struct.className = 'pl-2 border-l border-gray-200';
+              const sampleObj = createSampleFromSchema(schema, api.components ? api.components.schemas : {}, 0) || {};
+              for (const [k, prop] of Object.entries(schema.properties)) {
+                const row = document.createElement('div');
+                row.className = 'flex gap-2 items-center';
+                const label = document.createElement('div');
+                label.className = 'w-40 text-xs text-gray-700';
+                label.textContent = k;
+                const type = prop.type || 'string';
+                const input = document.createElement('input');
+                input.name = `query_${p.name}_${k}`;
+                input.setAttribute('data-type', type);
+                input.setAttribute('data-prop-name', k);
+                if (type === 'array') {
+                  input.setAttribute('data-array', 'true');
+                  input.placeholder = 'np. desc';
+                }
+                input.className = 'flex-1 p-2 border rounded';
+                let val = '';
+                if (prop.example !== undefined) val = prop.example;
+                else if (prop.format === 'date-time') val = new Date().toISOString();
+                else if (type === 'array' && Array.isArray(sampleObj[k])) val = sampleObj[k].filter(Boolean).join(',');
+                else if (sampleObj[k] !== undefined) val = sampleObj[k];
+                input.value = val === null || val === undefined ? '' : String(val);
+                row.appendChild(label);
+                row.appendChild(input);
+                struct.appendChild(row);
+              }
+              structWrap.appendChild(struct);
+              wrap.appendChild(structWrap);
+              sampleQueryValues[p.name] = sampleObj;
+            } else {
+              // simple query param
+              let sample = '';
+              if (p.example !== undefined) sample = p.example;
+              else if (p.schema && p.schema.example !== undefined) sample = p.schema.example;
+              else if (p.schema && p.schema.type === 'integer') sample = 0;
+              sampleQueryValues[p.name] = sample;
+              const row = document.createElement('div');
+              row.className = 'flex gap-2 items-center';
+              row.innerHTML = `<div class="w-40 text-xs text-gray-700">${p.name}</div><input name="query_${p.name}" placeholder="${p.name}" value='${sample}' class="flex-1 p-2 border rounded" />`;
+              wrap.appendChild(row);
+            }
+          });
+          form.appendChild(wrap);
+        }
+
+        // Body
+        let bodySchema = null;
+        let sampleBodyJSON = null;
+        if (entry.op.requestBody && entry.op.requestBody.content && entry.op.requestBody.content['application/json']) {
+          const schema = entry.op.requestBody.content['application/json'].schema;
+          bodySchema = schema;
+          const box = document.createElement('div');
+          box.innerHTML = '<div class="text-sm text-gray-600 flex items-center justify-between"><span>Request body (JSON)</span></div>';
+
+          const controls = document.createElement('div');
+          controls.className = 'flex gap-2 mt-2';
+          const btnForm = document.createElement('button');
+          btnForm.type = 'button'; btnForm.className = 'px-2 py-1 text-xs bg-gray-100 rounded'; btnForm.textContent = 'Form';
+          const btnRaw = document.createElement('button');
+          btnRaw.type = 'button'; btnRaw.className = 'px-2 py-1 text-xs bg-white rounded border'; btnRaw.textContent = 'Raw JSON';
+          controls.appendChild(btnForm); controls.appendChild(btnRaw);
+          box.appendChild(controls);
+
+          const sample = createSampleFromSchema(schema, api.components ? api.components.schemas : {}, 0) || {};
+          sampleBodyJSON = JSON.stringify(sample, null, 2);
+
+          // structured form
+          const struct = document.createElement('div');
+          struct.setAttribute('data-body-structured', 'true');
+          struct.className = 'mt-2 space-y-2';
+          if (schema.type === 'object' && schema.properties) {
+            for (const [k, p] of Object.entries(schema.properties)) {
+              const row = document.createElement('div');
+              row.className = 'flex gap-2 items-center';
+              const label = document.createElement('div');
+              label.className = 'w-40 text-xs text-gray-700';
+              label.textContent = k;
+              const type = (p.type || (p.schema && p.schema.type)) || 'string';
+              const input = document.createElement('input');
+              input.name = `body_field_${k}`;
+              input.setAttribute('data-type', type);
+              input.className = 'flex-1 p-2 border rounded font-mono text-sm';
+              let val = '';
+              if (p.example !== undefined) val = p.example;
+              else if (p.type === 'string' && p.format === 'date-time') val = new Date().toISOString();
+              else if (p.type === 'number' || p.type === 'integer') val = 0;
+              else if (p.type === 'boolean') val = false;
+              else if (sample[k] !== undefined) val = sample[k];
+              input.value = val === null ? '' : String(val);
+              row.appendChild(label);
+              row.appendChild(input);
+              struct.appendChild(row);
+            }
+            box.appendChild(struct);
+          } else {
+            // fallback: just raw
+            const ta = document.createElement('textarea');
+            ta.name = 'body';
+            ta.className = 'w-full h-40 p-2 border rounded font-mono text-sm mt-2';
+            ta.value = sampleBodyJSON;
+            box.appendChild(ta);
+          }
+
+          // raw textarea
+          const taRaw = document.createElement('textarea');
+          taRaw.name = 'body';
+          taRaw.className = 'w-full h-40 p-2 border rounded font-mono text-sm mt-2 hidden';
+          taRaw.value = sampleBodyJSON;
+          box.appendChild(taRaw);
+
+          // toggle logic
+          btnForm.addEventListener('click', () => {
+            if (struct) struct.classList.remove('hidden');
+            taRaw.classList.add('hidden');
+            btnForm.classList.add('bg-gray-100'); btnRaw.classList.remove('bg-gray-100');
+          });
+          btnRaw.addEventListener('click', () => {
+            if (struct) struct.classList.add('hidden');
+            taRaw.classList.remove('hidden');
+            btnRaw.classList.add('bg-gray-100'); btnForm.classList.remove('bg-gray-100');
+          });
+
+          form.appendChild(box);
+        }
+
+        const sendRow = document.createElement('div');
+        sendRow.className = 'flex items-center gap-3';
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'button';
+        sendBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700';
+        sendBtn.textContent = 'Wyślij';
+        sendBtn.onclick = async () => {
+          await sendRequest(entry, form, api);
+        };
+        const baseUrlNote = document.createElement('div');
+        baseUrlNote.className = 'text-xs text-gray-500';
+        baseUrlNote.textContent = `Server: ${api.servers && api.servers[0] ? api.servers[0].url : ''}`;
+        sendRow.appendChild(sendBtn);
+        sendRow.appendChild(baseUrlNote);
+        form.appendChild(sendRow);
+        // Examples / curl
+        const examplesBox = document.createElement('div');
+        examplesBox.className = 'mt-3';
+        const curlPre = document.createElement('pre');
+        curlPre.className = 'p-2 bg-gray-50 rounded text-xs text-gray-800 overflow-auto';
+        // build sample URL
+        let sampleUrl = (api.servers && api.servers[0] && api.servers[0].url) ? api.servers[0].url.replace(/\/$/, '') : '';
+        let tmpPath = entry.path;
+        for (const k of Object.keys(samplePathValues)) tmpPath = tmpPath.replace('{' + k + '}', encodeURIComponent(samplePathValues[k]));
+        sampleUrl += tmpPath;
+        const sampleQs = [];
+        for (const qn of Object.keys(sampleQueryValues)) {
+          const v = sampleQueryValues[qn];
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            for (const [prop, propValue] of Object.entries(v)) {
+              if (Array.isArray(propValue)) {
+                propValue.filter(x => x !== '' && x !== null && x !== undefined).forEach(item => {
+                  sampleQs.push(`${encodeURIComponent(prop)}=${encodeURIComponent(item)}`);
+                });
+              } else if (propValue !== '' && propValue !== null && propValue !== undefined) {
+                sampleQs.push(`${encodeURIComponent(prop)}=${encodeURIComponent(propValue)}`);
+              }
+            }
+          } else if (v !== '' && v !== null) {
+            sampleQs.push(`${encodeURIComponent(qn)}=${encodeURIComponent(v)}`);
+          }
+        }
+        if (sampleQs.length) sampleUrl += '?' + sampleQs.join('&');
+        let curl = `curl -X ${entry.method} "${sampleUrl}"`;
+        if (sampleBodyJSON) curl += ` \\\n+  -H "Content-Type: application/json" \\\n+  -d '${sampleBodyJSON.replace(/'/g, "'\\''")}'`;
+        curlPre.textContent = curl;
+        examplesBox.appendChild(document.createElement('div'));
+        examplesBox.innerHTML = `<div class="text-sm text-gray-600">Przykładowy curl</div>`;
+        examplesBox.appendChild(curlPre);
+        details.appendChild(form);
+        details.appendChild(examplesBox);
+      }
+
+      async function renderResponse(json) {
+        const respPre = document.getElementById('responseBody');
+        // If page-style response with 'content' array
+        if (json && json.content && Array.isArray(json.content)) {
+          const meta = document.getElementById('responseMeta');
+          meta.textContent = `items: ${json.numberOfElements || json.content.length}, total: ${json.totalElements || ''}`;
+          renderTable(json.content);
+          return;
+        }
+        // If top-level array
+        if (Array.isArray(json)) {
+          document.getElementById('responseMeta').textContent = `Array[${json.length}]`;
+          renderTable(json);
+          return;
+        }
+        // If single object with array-like fields, try to pick a sensible array
+        const keys = json && typeof json === 'object' ? Object.keys(json) : [];
+        for (const k of keys) {
+          if (Array.isArray(json[k]) && json[k].length && typeof json[k][0] === 'object') {
+            document.getElementById('responseMeta').textContent = `Object with array '${k}'`;
+            renderTable(json[k]);
+            return;
+          }
+        }
+        // fallback: pretty JSON
+        document.getElementById('responseMeta').textContent = '';
+        document.getElementById('responseBody').textContent = JSON.stringify(json, null, 2);
+      }
+
+      function renderTable(array) {
+        const respPre = document.getElementById('responseBody');
+        if (!array || !array.length) {
+          respPre.textContent = '[]';
+          return;
+        }
+        const cols = Array.from(array.reduce((s, r) => { Object.keys(r||{}).forEach(k=>s.add(k)); return s; }, new Set()));
+        const table = document.createElement('table');
+        table.className = 'min-w-full text-sm';
+        const thead = document.createElement('thead');
+        thead.innerHTML = `<tr class="bg-gray-50 text-left"><th class="p-2 border">#</th>${cols.map(c=>`<th class="p-2 border">${c}</th>`).join('')}</tr>`;
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        array.forEach((row, i) => {
+          const tr = document.createElement('tr');
+          tr.className = i % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+          const cells = [`<td class="p-2 border align-top">${i+1}</td>`];
+          for (const c of cols) {
+            let v = row[c];
+            if (v === null || v === undefined) v = '';
+            else if (typeof v === 'object') v = JSON.stringify(v);
+            cells.push(`<td class="p-2 border align-top font-mono text-xs">${String(v)}</td>`);
+          }
+          tr.innerHTML = cells.join('');
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        respPre.textContent = '';
+        respPre.appendChild(table);
+      }
+
+      async function sendRequest(entry, form, api) {
+        const server = (api.servers && api.servers[0] && api.servers[0].url) ? api.servers[0].url.replace(/\/$/, '') : '';
+        let url = server + entry.path;
+
+        // replace path params
+        const pathInputs = [...form.querySelectorAll('[name^="path_"]')];
+        for (const inp of pathInputs) {
+          const name = inp.name.replace(/^path_/,'');
+          url = url.replace('{' + name + '}', encodeURIComponent(inp.value || ''));
+        }
+
+        // collect query params
+        const qs = [];
+        // structured query groups
+        const qStructs = [...form.querySelectorAll('[data-query-structured]')];
+        for (const s of qStructs) {
+          const inputs = [...s.querySelectorAll('[name^="query_"]')];
+          for (const inp of inputs) {
+            const prop = inp.getAttribute('data-prop-name') || inp.name.split('_').slice(2).join('_');
+            const type = inp.getAttribute('data-type') || 'string';
+            let v = inp.value;
+            if (type === 'number') v = v === '' ? null : Number(v);
+            if (type === 'integer') v = v === '' ? null : parseInt(v,10);
+            if (type === 'boolean') v = (v === 'true' || v === '1');
+            if (type === 'array') {
+              String(v || '')
+                .split(',')
+                .map(x => x.trim())
+                .filter(Boolean)
+                .forEach(item => qs.push(`${encodeURIComponent(prop)}=${encodeURIComponent(item)}`));
+              continue;
+            }
+            if (v !== null && v !== undefined && v !== '') {
+              qs.push(`${encodeURIComponent(prop)}=${encodeURIComponent(v)}`);
+            }
+          }
+        }
+        // simple query inputs (names like query_name)
+        const qInputs = [...form.querySelectorAll('[name^="query_"]')].filter(i=>/^query_[^_]+$/.test(i.name));
+        for (const inp of qInputs) {
+          const name = inp.name.replace(/^query_/,'');
+          if (inp.value) qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(inp.value)}`);
+        }
+        if (qs.length) url += '?' + qs.join('&');
+
+        const options = { method: entry.method };
+        // structured body fields
+        const structured = form.querySelector('[data-body-structured]');
+        if (structured) {
+          const inputs = structured.querySelectorAll('[name^="body_field_"]');
+          const obj = {};
+          inputs.forEach(inp => {
+            const key = inp.name.replace(/^body_field_/, '');
+            const type = inp.getAttribute('data-type') || 'string';
+            let v = inp.value;
+            if (type === 'number') v = v === '' ? null : Number(v);
+            if (type === 'integer') v = v === '' ? null : parseInt(v, 10);
+            if (type === 'boolean') v = (v === 'true' || v === '1');
+            obj[key] = v;
+          });
+          options.body = JSON.stringify(obj);
+          options.headers = { 'Content-Type': 'application/json' };
+        } else {
+          const bodyTa = form.querySelector('[name="body"]');
+          if (bodyTa) {
+            try {
+              options.body = bodyTa.value && bodyTa.value.trim() ? bodyTa.value : null;
+              options.headers = { 'Content-Type': 'application/json' };
+            } catch(e) {
+              alert('Invalid JSON in body');
+              return;
+            }
+          }
+        }
+
+        const respPre = document.getElementById('responseBody');
+        const respMeta = document.getElementById('responseMeta');
+        respPre.textContent = 'Ładowanie...';
+        respMeta.textContent = '';
+
+        try {
+          const r = await fetch(url, options);
+          respMeta.textContent = `HTTP ${r.status} ${r.statusText}`;
+          const ct = r.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const j = await r.json();
+            await renderResponse(j);
+          } else {
+            const t = await r.text();
+            document.getElementById('responseBody').textContent = t;
+          }
+        } catch (err) {
+          respPre.textContent = 'Błąd: ' + (err.message || err);
+        }
+      }
+
+      // init
+      (async ()=>{
+        try {
+          const api = await loadApiDocs();
+          buildEndpointsList(api);
+        } catch (e) {
+          document.getElementById('details').innerHTML = `<div class="text-red-600">Błąd podczas wczytywania api-docs.json: ${e.message}</div>`;
+        }
+      })();
+    </script>
+  </body>
+</html>
