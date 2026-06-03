@@ -12,7 +12,6 @@ RUN npm run build
 
 # --- ETAP 2: Serwowanie plików (Production Stage) ---
 FROM nginx:alpine
-container_name: personal_budget_frontend
 
 # Kopiujemy zbudowane pliki statyczne z pierwszego etapu do Nginxa
 # (Uwaga: Jeśli używasz starego Create React App, zmień /app/dist na /app/build)
