@@ -5,6 +5,8 @@ natomiast jesli nie to proszę o notę.
 Zrobiłem osobnego brancha aby zrobić pull requesta na którym Państwo możecie nanieść poprawki odnośnie kodu,
 byłbym wdzięczny za code review.
 
+Główny projekt znajduje się na branchu feat/account
+
 Przepraszam też z góry za brak conventional commits.
 
 Z wstępu chciałem dodać jeszcze, że dodany został plik AI_NOTES.md w którym zamieściłem 
