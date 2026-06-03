@@ -5,3 +5,14 @@
 body {
   @apply bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen;
 }
+
+@keyframes slideIn {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

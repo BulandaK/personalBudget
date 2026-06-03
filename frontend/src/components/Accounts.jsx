@@ -155,7 +155,7 @@ export default function Accounts({ onSelectAccount }) {
                 {parseFloat(account.balance).toFixed(2)} <span className="text-lg">zł</span>
               </p>
               <button
-                onClick={() => onSelectAccount(account.id)}
+                onClick={() => onSelectAccount(account)}
                 className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm"
               >
                 Wybierz konto

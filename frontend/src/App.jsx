@@ -7,10 +7,12 @@ import Budgets from './components/Budgets'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [selectedAccount, setSelectedAccount] = useState(null)
+  const [selectedAccountId, setSelectedAccountId] = useState(null)
+  const [selectedAccountName, setSelectedAccountName] = useState('')
 
-  const handleSelectAccount = (accountId) => {
-    setSelectedAccount(accountId)
+  const handleSelectAccount = (account) => {
+    setSelectedAccountId(account?.id ?? account)
+    setSelectedAccountName(account?.name || '')
     setActiveTab('dashboard')
   }
 
@@ -33,7 +35,18 @@ export default function App() {
               </div>
               <h1 className="text-2xl font-bold text-gray-900">Personal Budget</h1>
             </div>
-            <p className="text-sm text-gray-500">Zarządzaj swoimi finansami </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-gray-500 hidden sm:block">Zarządzaj swoimi finansami</p>
+              <div className="rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-700 border border-gray-200">
+                {selectedAccountName ? (
+                  <span>
+                    Wybrane konto: <span className="font-semibold text-gray-900">{selectedAccountName}</span>
+                  </span>
+                ) : (
+                  <span>Nie wybrano konta</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -65,10 +78,10 @@ export default function App() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <Dashboard selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} />}
+        {activeTab === 'dashboard' && <Dashboard selectedAccount={selectedAccountId} onSelectAccount={handleSelectAccount} />}
         {activeTab === 'accounts' && <Accounts onSelectAccount={handleSelectAccount} />}
-        {activeTab === 'transactions' && <Transactions selectedAccount={selectedAccount} />}
-        {activeTab === 'budgets' && <Budgets selectedAccount={selectedAccount} />}
+        {activeTab === 'transactions' && <Transactions selectedAccount={selectedAccountId} />}
+        {activeTab === 'budgets' && <Budgets selectedAccount={selectedAccountId} />}
       </main>
     </div>
   )

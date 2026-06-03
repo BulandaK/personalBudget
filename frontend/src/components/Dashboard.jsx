@@ -119,7 +119,7 @@ export default function Dashboard({ selectedAccount, onSelectAccount }) {
           return (
             <button
               key={account.id}
-              onClick={() => onSelectAccount(account.id)}
+              onClick={() => onSelectAccount(account)}
               className={`text-left bg-white rounded-2xl shadow-sm p-5 border transition-all hover:shadow-md ${
                 isActive ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'
               }`}
