@@ -12,7 +12,7 @@ myślę, że w zdecydowanej większości moje obecne rozwiązanie dotyczące not
 
 przyznaje także że wspomagałem się przy budowaniu customowych query w repozytoriach
 
-również zapytałem jak zapewnić odpowiednią izolacje w transakcjach co wydawało mi się ważę w temacie api do zarządania budżetem
+również zapytałem jak zapewnić odpowiednią izolacje w transakcjach co wydawało mi się ważnę w temacie api do zarządania budżetem
  ```@Lock(LockModeType.PESSIMISTIC_WRITE)``` 
 
-**Całe GUI (http://localhost:80) czyli endpoint tester  podobny do bruno/postmana został zrobiony przez copilota**
+**Całe GUI (http://localhost:80) czyli wszystko co w folderze [frontend](frontend), zostało zrobione przez copilota**

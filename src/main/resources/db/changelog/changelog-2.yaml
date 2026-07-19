@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: 5
+      author: BulandaK
+      changes:
+        # --- TESTOWE DANE DLA TABELI ACCOUNTS ---
+        - insert:
+            tableName: accounts
+            columns:
+              - column: { name: name, value: "Konto Osobiste - Jan Kowalski" }
+              - column: { name: balance, valueNumeric: 3500.00 }
+        - insert:
+            tableName: accounts
+            columns:
+              - column: { name: name, value: "Konto Oszczędnościowe - Jan Kowalski" }
+              - column: { name: balance, valueNumeric: 12500.50 }
+
+        # --- TESTOWE DANE DLA TABELI TRANSACTIONS ---
+        # Transakcje dla Konta 1 (Przychody i wydatki z kategoriami do analityki)
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 5000.00 }
+              - column: { name: type, value: "INCOME" }
+              - column: { name: category, value: "SALARY" }
+              - column: { name: description, value: "Wynagrodzenie za pracę" }
+              - column: { name: date, valueDate: "2026-05-10T10:00:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 150.50 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "FOOD" }
+              - column: { name: description, value: "Zakupy w Biedronce" }
+              - column: { name: date, valueDate: "2026-05-12T15:30:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 80.00 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "ENTERTAINMENT" }
+              - column: { name: description, value: "Bilety do kina" }
+              - column: { name: date, valueDate: "2026-05-15T20:15:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 1200.00 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "HOUSING" }
+              - column: { name: description, value: "Czynsz za mieszkanie" }
+              - column: { name: date, valueDate: "2026-05-01T08:00:00" }
+
+        # Transakcje dla Konta 2
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 2 }
+              - column: { name: amount, valueNumeric: 500.00 }
+              - column: { name: type, value: "INCOME" }
+              - column: { name: category, value: "UNCATEGORIZED" }
+              - column: { name: description, value: "Przelew własny - oszczędności" }
+              - column: { name: date, valueDate: "2026-05-11T12:00:00" }

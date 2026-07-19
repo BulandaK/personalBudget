@@ -1,0 +1,52 @@
+databaseChangeLog:
+  - changeSet:
+      id: 5
+      author: BulandaK
+      changes:
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 2 }
+              - column: { name: amount, valueNumeric: 5000.00 }
+              - column: { name: type, value: "INCOME" }
+              - column: { name: category, value: "SALARY" }
+              - column: { name: description, value: "Wynagrodzenie za pracę" }
+              - column: { name: date, valueDate: "2026-06-10T10:00:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 2 }
+              - column: { name: amount, valueNumeric: 150.50 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "FOOD" }
+              - column: { name: description, value: "Zakupy w Biedronce" }
+              - column: { name: date, valueDate: "2026-06-12T15:30:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 80.00 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "ENTERTAINMENT" }
+              - column: { name: description, value: "Bilety do kina" }
+              - column: { name: date, valueDate: "2026-06-15T20:15:00" }
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 1 }
+              - column: { name: amount, valueNumeric: 1200.00 }
+              - column: { name: type, value: "EXPENSE" }
+              - column: { name: category, value: "HOUSING" }
+              - column: { name: description, value: "Czynsz za mieszkanie" }
+              - column: { name: date, valueDate: "2026-06-01T08:00:00" }
+
+        # Transakcje dla Konta 2
+        - insert:
+            tableName: transactions
+            columns:
+              - column: { name: account_id, valueNumeric: 2 }
+              - column: { name: amount, valueNumeric: 500.00 }
+              - column: { name: type, value: "INCOME" }
+              - column: { name: category, value: "UNCATEGORIZED" }
+              - column: { name: description, value: "Przelew własny - oszczędności" }
+              - column: { name: date, valueDate: "2026-06-11T12:00:00" }

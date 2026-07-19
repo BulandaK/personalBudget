@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: 6
+      author: BulandaK
+      preConditions:
+        - not:
+            tableExists:
+              tableName: category_budget
+        - onFail: MARK_RAN
+      changes:
+        - createTable:
+            tableName: category_budget
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: account_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: limit_amount
+                  type: DECIMAL(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 7
+      author: BulandaK
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: category_budget
+            baseColumnNames: account_id
+            referencedTableName: accounts
+            referencedColumnNames: id
+            constraintName: fk_budgetCategory_account
