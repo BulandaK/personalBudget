@@ -1,0 +1,549 @@
+package com.example.personalBudget.controller;
+
+import com.example.personalBudget.dto.account.AccountResponseDto;
+import com.example.personalBudget.dto.account.CreateAccountCommand;
+import com.example.personalBudget.service.AccountService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/accounts")
+@Tag(name = "Accounts", description = "Endpoints for managing personal accounts and their balances")
+public class AccountController {
+    private final AccountService accountService;
+
+    @GetMapping
+    @Operation(
+            summary = "Get all accounts",
+            description = "Retrieves a full list of all registered personal accounts with their current balances."
+    )
+    @ApiResponse(responseCode = "200", description = "Account list successfully retrieved")
+    public List<AccountResponseDto> getAll() {
+        return accountService.getAll();
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+            summary = "Create a new account",
+            description = "Creates a new personal account with an initial name and balance."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Account successfully created"),
+            @ApiResponse(responseCode = "400", description = "Invalid input data or validation failed", content = @Content)
+    })
+    public AccountResponseDto create(
+            @Valid @RequestBody CreateAccountCommand command
+    ) {
+        return accountService.create(command);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(
+            summary = "Get account details",
+            description = "Retrieves detailed information about a specific account by its unique identifier."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Account found and details returned"),
+            @ApiResponse(responseCode = "404", description = "Account with the given ID does not exist", content = @Content)
+    })
+    public AccountResponseDto getAccount(
+            @PathVariable @Parameter(description = "Unique identifier of the account", example = "1") Long id
+    ) {
+        return accountService.getAccount(id);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Delete an account",
+            description = "Deletes an account from the system. Deletion is only permitted if the account has no associated transactions."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Account successfully deleted"),
+            @ApiResponse(responseCode = "404", description = "Account with the given ID does not exist", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Cannot delete account because it contains related transactions", content = @Content)
+    })
+    public void deleteAccount(
+            @PathVariable @Parameter(description = "Unique identifier of the account to delete", example = "1") Long id
+    ) {
+        accountService.delete(id);
+    }
+}
+package com.example.personalBudget.dto.account;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
+
+@Schema(description = "Response data containing details of a personal account and its current balance")
+public record AccountResponseDto(
+
+        @Schema(description = "The unique database identifier of the account", example = "1")
+        Long id,
+
+        @Schema(description = "The name given to the account", example = "Main Checking Account")
+        String name,
+
+        @Schema(description = "The current monetary balance available in the account", example = "3500.00")
+        BigDecimal balance
+) {
+}
+package com.example.personalBudget.dto.account;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+
+public record CreateAccountCommand(
+        @Schema(description = "The unique name of the account",example = "my account", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotBlank
+        String name
+) {
+}
+
+package com.example.personalBudget.controller;
+
+import com.example.personalBudget.dto.transaction.CreateTransactionCommand;
+import com.example.personalBudget.dto.transaction.TransactionFilterCriteria;
+import com.example.personalBudget.dto.transaction.TransactionResponseDto;
+import com.example.personalBudget.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+
+@RestController
+@RequestMapping("/api/v1/transactions")
+@RequiredArgsConstructor
+@Tag(name = "Transactions", description = "Endpoints for creating, deleting, and retrieving financial transactions with pagination")
+public class TransactionController {
+    private final TransactionService transactionService;
+
+    @GetMapping
+    @Operation(
+            summary = "Get paginated transactions",
+            description = "Retrieves a paginated list of transactions, optionally filtered by date range and category."
+    )
+    @ApiResponse(responseCode = "200", description = "Paginated list of transactions successfully retrieved")
+    public Page<TransactionResponseDto> getTransactions(
+            @Valid TransactionFilterCriteria criteria,
+            @Parameter(description = "Pagination and sorting parameters (e.g., page=0, size=10, sort=date,desc)")
+            Pageable pageable
+    ) {
+        return transactionService.getTransactions(criteria,pageable);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+            summary = "Create a new transaction",
+            description = "Registers a new financial transaction (Income or Expense). If it is an Expense, it also evaluates the category budget status."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Transaction successfully created"),
+            @ApiResponse(responseCode = "400", description = "Invalid input data or budget/account processing failure", content = @Content),
+            @ApiResponse(responseCode = "404", description = "The specified account ID does not exist", content = @Content)
+    })
+    public TransactionResponseDto create(@RequestBody @Valid CreateTransactionCommand command) {
+        return transactionService.create(command);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Delete a transaction",
+            description = "Removes a specific transaction by its unique database ID and automatically reverts its impact on the account balance."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Transaction successfully deleted"),
+            @ApiResponse(responseCode = "404", description = "Transaction with the given ID does not exist", content = @Content)
+    })
+    public void delete(
+            @PathVariable @NotNull @Parameter(description = "Unique identifier of the transaction", example = "45") Long id
+    ) {
+        transactionService.delete(id);
+    }
+}
+package com.example.personalBudget.dto.transaction;
+
+import com.example.personalBudget.model.Category;
+import com.example.personalBudget.model.TransactionType;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Schema(description = "Data required to create a new income or expense transaction")
+public record CreateTransactionCommand(
+
+        @Schema(description = "The monetary value of the transaction. Must be positive.", example = "250.50", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Amount cannot be null")
+        @Positive(message = "Amount must be greater than zero")
+        BigDecimal amount,
+
+        @Schema(description = "The type of the transaction", example = "EXPENSE", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Transaction type cannot be null")
+        TransactionType transactionType,
+
+        @Schema(description = "The financial category associated with this transaction", example = "FOOD", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Category cannot be null")
+        Category category,
+
+        @Schema(description = "Optional custom description or notes regarding the transaction", example = "Weekly grocery shopping at Lidl", maxLength = 255)
+        @Size(max = 255, message = "Description cannot exceed 255 characters")
+        String description,
+
+        @Schema(description = "The date and time when the transaction occurred (ISO format)", example = "2026-06-02T12:00:00", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Date cannot be null")
+        LocalDateTime date,
+
+        @Schema(description = "The database identifier of the account this transaction belongs to", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Account ID cannot be null")
+        Long accountId
+) {
+}package com.example.personalBudget.dto.transaction;
+
+import com.example.personalBudget.model.Category;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
+
+@Schema(description = "Criteria parameters used for filtering the paginated transaction list")
+public record TransactionFilterCriteria(
+
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        @Parameter(description = "Filter start date-time (ISO format)", example = "2026-06-01T00:00:00")
+        LocalDateTime from,
+
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        @Parameter(description = "Filter end date-time (ISO format)", example = "2026-06-30T23:59:59")
+        LocalDateTime to,
+
+        @Parameter(description = "Filter by specific transaction category", example = "FOOD")
+        Category category
+) {
+}package com.example.personalBudget.dto.transaction;
+
+import com.example.personalBudget.model.Category;
+import com.example.personalBudget.model.TransactionType;
+import io.swagger.v3.oas.annotations.media.Schema;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Schema(description = "Detailed response information representing a registered transaction and its current category budget impacts")
+public record TransactionResponseDto(
+
+        @Schema(description = "The unique database identifier of the transaction", example = "45")
+        Long id,
+
+        @Schema(description = "The monetary value of the transaction", example = "250.50")
+        BigDecimal amount,
+
+        @Schema(description = "The type classification of the transaction", example = "EXPENSE")
+        TransactionType type,
+
+        @Schema(description = "The specific spending or income category", example = "FOOD")
+        Category category,
+
+        @Schema(description = "The description or note assigned to this entry", example = "Weekly grocery shopping at Lidl")
+        String description,
+
+        @Schema(description = "The registered date and time of the transaction", example = "2026-06-02T12:00:00")
+        LocalDateTime date,
+
+        @Schema(description = "The identifier of the associated account", example = "1")
+        Long accountId,
+
+        @Schema(description = "Flag indicating if the current month's budget limit for this category has been exceeded after inserting this transaction", example = "true")
+        boolean budgetExceeded,
+
+        @Schema(description = "Total accumulated spending amount in this specific category for the current month so far", example = "1450.75")
+        BigDecimal spentInCategory
+) {
+}
+package com.example.personalBudget.controller;
+
+import com.example.personalBudget.dto.categoryBudget.CategoryBudgetResponseDto;
+import com.example.personalBudget.dto.categoryBudget.CategoryBudgetUpdateCommand;
+import com.example.personalBudget.dto.categoryBudget.CreateCategoryBudgetCreateCommand;
+import com.example.personalBudget.service.CategoryBudgetService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/budgets")
+@RequiredArgsConstructor
+@Tag(name = "Category Budgets", description = "Endpoints for managing monthly spending limits for specific account categories")
+public class CategoryBudgetController {
+    private final CategoryBudgetService categoryBudgetService;
+
+    @PostMapping
+    @ResponseStatus(value = HttpStatus.CREATED)
+    @Operation(
+            summary = "Set a new category budget limit",
+            description = "Defines a fresh spending limit for a specific category on a selected account."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Budget limit successfully created"),
+            @ApiResponse(responseCode = "400", description = "Invalid input parameters or validation failed", content = @Content),
+            @ApiResponse(responseCode = "404", description = "The specified account does not exist", content = @Content)
+    })
+    public CategoryBudgetResponseDto setCategoryLimit(@RequestBody @Valid CreateCategoryBudgetCreateCommand command) {
+        return categoryBudgetService.setLimit(command);
+    }
+
+    @GetMapping("/account/{accountId}")
+    @Operation(
+            summary = "Get all budgets for an account",
+            description = "Retrieves a list of all defined category limits associated with a specific account ID."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "List of budgets successfully retrieved"),
+            @ApiResponse(responseCode = "404", description = "Account with the given ID does not exist", content = @Content)
+    })
+    public List<CategoryBudgetResponseDto> getBudgets(
+            @PathVariable @Parameter(description = "ID of the account to fetch budgets for", example = "1") Long accountId
+    ) {
+        return categoryBudgetService.getByAccount(accountId);
+    }
+
+    @PutMapping
+    @Operation(
+            summary = "Update an existing category budget limit",
+            description = "Modifies the limit amount for an already existing account budget category."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Budget limit successfully updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid input data or negative limit amount", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Budget for the specified account and category combination was not found", content = @Content)
+    })
+    public CategoryBudgetResponseDto updateLimit(@RequestBody @Valid CategoryBudgetUpdateCommand command) {
+       return categoryBudgetService.updateLimit(command);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(value = HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Delete a budget limit",
+            description = "Removes a specific category budget limit from the system completely using its unique database ID."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Budget limit successfully removed"),
+            @ApiResponse(responseCode = "404", description = "Budget limit with the given ID does not exist", content = @Content)
+    })
+    public void deleteLimit(
+            @PathVariable @Parameter(description = "Unique identifier of the budget limit configuration", example = "1") Long id
+    ) {
+        categoryBudgetService.delete(id);
+    }
+
+}
+package com.example.personalBudget.dto.categoryBudget;
+
+import com.example.personalBudget.model.Category;
+
+import java.math.BigDecimal;
+
+public record CategoryBudgetResponseDto(
+        Long id,
+        Long accountId,
+        Category category,
+        BigDecimal limitAmount
+) {
+}
+package com.example.personalBudget.dto.categoryBudget;
+
+import com.example.personalBudget.model.Category;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
+import java.math.BigDecimal;
+
+@Schema(description = "Data required to update an existing category spending limit")
+public record CategoryBudgetUpdateCommand (
+
+        @Schema(description = "ID of the account associated with the budget", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Account ID cannot be null")
+        Long accountId,
+
+        @Schema(description = "The targeted budget category to modify", example = "ENTERTAINMENT", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Category cannot be null")
+        Category category,
+
+        @Schema(description = "The new maximum spending threshold. Must be greater than zero.", example = "650.00", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Limit amount cannot be null")
+        @Positive(message = "Limit amount must be greater than zero")
+        BigDecimal limitAmount
+){
+}package com.example.personalBudget.dto.categoryBudget;
+
+import com.example.personalBudget.model.Category;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
+import java.math.BigDecimal;
+
+@Schema(description = "Data required to set a new spending limit configuration for a category")
+public record CreateCategoryBudgetCreateCommand(
+
+        @Schema(description = "ID of the account to assign the budget to", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Account ID cannot be null")
+        Long accountId,
+
+        @Schema(description = "The target category for the limit", example = "FOOD", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Category cannot be null")
+        Category category,
+
+        @Schema(description = "Maximum allowed spending amount for this category. Must be greater than zero.", example = "1200.00", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Limit amount cannot be null")
+        @Positive(message = "Limit amount must be greater than zero")
+        BigDecimal limitAmount
+) {
+}
+package com.example.personalBudget.controller;
+
+import com.example.personalBudget.dto.analytics.AccountAnalyticsResponseDto;
+import com.example.personalBudget.service.AnalyticsService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/accounts")
+@Tag(name = "Analytics", description = "Endpoints for financial data aggregation, summaries, and spending analytics")
+public class AnalyticsController {
+    private final AnalyticsService analyticsService;
+
+    @GetMapping("/{accountId}/analytics")
+    @Operation(
+            summary = "Get financial analytics for an account",
+            description = "Calculates total income, total expenses, and groups expenses by category within a specified time range for a given account."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Financial analytics successfully calculated and retrieved"),
+            @ApiResponse(responseCode = "400", description = "Invalid date-time format or missing request parameters", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Account with the specified ID was not found", content = @Content)
+    })
+    public AccountAnalyticsResponseDto getAccountAnalytics(
+            @PathVariable
+            @Parameter(description = "ID of the account to analyze", example = "1")
+            Long accountId,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            @Parameter(description = "Start date-time of the analysis period (ISO format)", example = "2026-06-01T00:00:00", required = true)
+            LocalDateTime fromDate,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            @Parameter(description = "End date-time of the analysis period (ISO format)", example = "2026-06-30T23:59:59", required = true)
+            LocalDateTime toDate
+    ) {
+        return analyticsService.getAccountAnalytics(accountId, fromDate, toDate);
+    }
+}
+package com.example.personalBudget.dto.analytics;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
+import java.util.List;
+
+@Schema(description = "Response data containing comprehensive financial analytics and summaries for a specific account")
+public record AccountAnalyticsResponseDto(
+
+        @Schema(description = "The analyzed account identifier", example = "1")
+        Long accountId,
+
+        @Schema(description = "The time range period for which the analytics were calculated")
+        PeriodDto period,
+
+        @Schema(description = "Total accumulated income within the requested period", example = "5200.00")
+        BigDecimal totalIncome,
+
+        @Schema(description = "Total accumulated expenses within the requested period", example = "1840.50")
+        BigDecimal totalExpenses,
+
+        @Schema(description = "Breakdown of total expenses grouped by each individual category")
+        List<ExpenseByCategoryDto> expensesByCategory
+) {
+}package com.example.personalBudget.dto.analytics;
+
+import com.example.personalBudget.model.Category;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
+
+@Schema(description = "Aggregated details of expenses for a specific category, including its percentage share of total spending")
+public record ExpenseByCategoryDto(
+
+        @Schema(description = "The financial category of the expense", example = "FOOD")
+        Category category,
+
+        @Schema(description = "The total monetary amount spent in this category within the period", example = "450.75")
+        BigDecimal amount,
+
+        @Schema(description = "The percentage share of this category relative to the total expenses (0.00 - 100.00)", example = "24.50")
+        BigDecimal percentage
+) {
+}package com.example.personalBudget.dto.analytics;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.LocalDateTime;
+
+@Schema(description = "The precise date and time boundaries used to filter and aggregate the financial data")
+public record PeriodDto(
+
+        @Schema(description = "The starting date-time boundary of the analysis period (inclusive)", example = "2026-06-01T00:00:00")
+        LocalDateTime fromDate,
+
+        @Schema(description = "The ending date-time boundary of the analysis period (inclusive)", example = "2026-06-30T23:59:59")
+        LocalDateTime toDate
+) {
+}
