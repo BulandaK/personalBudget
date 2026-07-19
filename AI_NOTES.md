@@ -8,7 +8,7 @@ TLDR;
 jak zaprojektowac rozwiazanie z budzetem na daną kategorie; co może się znaleźć, co powinno w którym dto;czy zrobić osobny controller do danego rozwiazania
 
 myślę, że w zdecydowanej większości moje obecne rozwiązanie dotyczące noty ostrzegawczej o przekroczeniu budżetu na daną kategorie
-(które nie jest idealne) jest zrobione przy konsultacji z gemini 3.5 flash.
+(które jest tak naprawdę boolean'em do dto transakcji) jest zrobione przy konsultacji z gemini 3.5 flash, co nie oznacza że go nie rozumiem.
 
 przyznaje także że wspomagałem się przy budowaniu customowych query w repozytoriach
 
